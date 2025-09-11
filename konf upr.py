@@ -1,3 +1,4 @@
+#1.1
 import tkinter as tk # импортируем tkinter
 
 def clicked():#функция для ввода и обработки комманд
