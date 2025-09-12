@@ -17,8 +17,10 @@ def clicked():#функция для ввода и обработки комма
     #обработка команд
     if comm == "ls":
         output_text.insert(tk.END, "Выполнена команда ls\n")
+        output_text.insert(tk.END, "аргумент " +f"{args}")
     elif comm == "cd":
         output_text.insert(tk.END, "Выполнена команда cd\n")
+        output_text.insert(tk.END, "аргумент " +f"{args}")
     elif comm == "exit":
         exit(0)
     else:
