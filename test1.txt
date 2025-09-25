@@ -1,0 +1,7 @@
+text
+ls
+#комент1
+cd /home
+ls -l
+#комент2
+exit
