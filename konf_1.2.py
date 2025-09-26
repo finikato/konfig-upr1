@@ -2,7 +2,6 @@ import tkinter as tk  # Основная библиотека для GUI
 from tkinter.scrolledtext import ScrolledText  # Текстовое поле с прокруткой
 import os  # Для работы с файловой системой
 import sys  # Для работы с аргументами командной строки
-import shlex  # Для корректного парсинга команд с кавычками
 
 
 class VFSEmulator:
@@ -13,7 +12,6 @@ class VFSEmulator:
         self.root.geometry("800x600")
 
         # Важно: устанавливаем текущую директорию как директорию программы
-        # Это решает проблему с относительными путями
         self.program_dir = os.path.dirname(os.path.abspath(__file__))
         os.chdir(self.program_dir)  # Меняем текущую рабочую директорию
 
@@ -112,7 +110,7 @@ class VFSEmulator:
         self.output_area.configure(state='disabled')
 
     def process_command(self, event=None):
-        """Обработка команд пользователя из поля ввода с использованием shlex для корректного парсинга кавычек"""
+        """Обработка команд пользователя из поля ввода"""
         command = self.entry.get().strip()
         self.entry.delete(0, tk.END)  # Очищаем поле ввода
 
@@ -125,13 +123,9 @@ class VFSEmulator:
         else:
             self.write_output(f"> {command}")
 
-        try:
-            # Используем shlex.split для корректного парсинга команд с кавычками
-            parts = shlex.split(command)
-        except ValueError as e:
-            self.write_output(f"Ошибка парсинга команды: {e}")
-            return
-
+        # Простой split без учета кавычек
+        parts = command.split()
+        
         if not parts:
             return
 
@@ -145,9 +139,13 @@ class VFSEmulator:
                 self.is_running = False
                 self.write_output("Эмулятор остановлен.")
             elif cmd == "ls":
-                self.write_output(f"Содержимое: {args[0] if args else self.current_dir}")
+                # Объединяем аргументы для поддержки путей с пробелами
+                target = ' '.join(args) if args else self.current_dir
+                self.write_output(f"Содержимое: {target}")
             elif cmd == "cd":
-                self.write_output(f"Смена директории: {args[0] if args else 'HOME'}")
+                # Объединяем аргументы для поддержки путей с пробелами
+                target = ' '.join(args) if args else 'HOME'
+                self.write_output(f"Смена директории: {target}")
             else:
                 self.write_output(f"Неизвестная команда: {cmd}")
         else:
@@ -167,7 +165,14 @@ class VFSEmulator:
             self.write_output("Ошибка: команда set требует два аргумента")
             return
 
-        param, value = args[0].lower(), args[1]
+        # Берем первый аргумент как параметр
+        param = args[0].lower()
+        
+        # Объединяем все остальные аргументы в значение (для поддержки путей с пробелами)
+        value = ' '.join(args[1:])
+        
+        # Удаляем кавычки если они есть
+        value = value.strip('"\'')
 
         # Установка разных параметров
         if param == "vfs_path":
@@ -198,7 +203,7 @@ class VFSEmulator:
         self.write_output("Эмулятор запущен. Введите команды VFS или 'exit'.")
 
     def execute_script(self):
-        """Выполнение скрипта команд с использованием shlex для корректного парсинга кавычек"""
+        """Выполнение скрипта команд"""
         self.write_output(f"ВЫПОЛНЕНИЕ СКРИПТА: {self.script_path}")
 
         try:
@@ -215,13 +220,9 @@ class VFSEmulator:
                     # Показываем команду с приглашением (имитация ввода пользователя)
                     self.write_output(f"{self.prompt}{line}")
 
-                    try:
-                        # Используем shlex.split для корректного парсинга команд с кавычками
-                        parts = shlex.split(line)
-                    except ValueError as e:
-                        self.write_output(f"Ошибка парсинга (строка {line_num}): {e}")
-                        continue
-
+                    # Простой split без учета кавычек
+                    parts = line.split()
+                    
                     if not parts:
                         continue
 
@@ -234,9 +235,13 @@ class VFSEmulator:
                         self.is_running = False
                         break
                     elif cmd == "ls":
-                        self.write_output(f"Содержимое: {args[0] if args else self.current_dir}")
+                        # Объединяем аргументы для поддержки путей с пробелами
+                        target = ' '.join(args) if args else self.current_dir
+                        self.write_output(f"Содержимое: {target}")
                     elif cmd == "cd":
-                        self.write_output(f"Смена директории: {args[0] if args else 'HOME'}")
+                        # Объединяем аргументы для поддержки путей с пробелами
+                        target = ' '.join(args) if args else 'HOME'
+                        self.write_output(f"Смена директории: {target}")
                     else:
                         self.write_output(f"Неизвестная команда: {cmd}")
         except Exception as e:
