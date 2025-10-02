@@ -1,0 +1,28 @@
+<vfs name="complex_vfs">
+    <directory name="home">
+        <directory name="user">
+            <directory name="documents">
+                <directory name="work">
+                    <file name="project1.txt">Проект 1 - Важные данные</file>
+                    <file name="project2.txt">Проект 2 - Документация</file>
+                </directory>
+                <directory name="personal">
+                    <file name="notes.txt">Личные заметки пользователя</file>
+                </directory>
+            </directory>
+        </directory>
+    </directory>
+    <directory name="system">
+        <file name="version.txt">finikato.OS v1.0 with VFS</file>
+        <file name="help.txt">Доступные команды:
+            - ls [путь] - список файлов
+            - cat [файл] - просмотр файла
+            - vfs-info - информация о VFS
+            - exit - выход</file>
+        <directory name="bin">
+            <file name="start.bat">Запуск системы...</file>
+            <file name="config.bat">Настройка системы...</file>
+        </directory>
+    </directory>
+    <file name="boot.bat">Загрузка системы завершена успешно!</file>
+</vfs>

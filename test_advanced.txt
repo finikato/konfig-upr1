@@ -1,0 +1,26 @@
+# Расширенный тест VFS - многоуровневая структура
+echo "=== ТЕСТ 2: МНОГОУРОВНЕВАЯ СТРУКТУРА ==="
+vfs-info
+
+echo "--- Исследование корневой директории ---"
+ls /
+
+echo "--- Навигация по домашней директории ---"
+ls /home
+ls /home/user
+ls /home/user/documents
+ls /home/user/documents/work
+ls /home/user/documents/personal
+
+echo "--- Навигация по системной директории ---"
+ls /system
+ls /system/bin
+
+echo "--- Чтение файлов ---"
+cat /system/version.txt
+cat /system/help.txt
+cat /home/user/documents/work/project1.txt
+cat /home/user/documents/personal/todo.txt
+cat /boot.bat
+
+echo "=== ТЕСТ 2 ЗАВЕРШЕН ==="

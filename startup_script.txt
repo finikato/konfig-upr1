@@ -1,0 +1,12 @@
+# Стартовый скрипт для тестирования всех команд
+vfs-info
+ls /
+ls /home/user/documents/work
+ls /system
+cat /system/version.txt
+cat /home/user/documents/work/project1.txt
+cat /boot.bat
+cat /nonexistent_file.txt
+ls /invalid_path
+vfs-info
+exit

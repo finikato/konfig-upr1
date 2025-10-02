@@ -1,0 +1,7 @@
+<vfs name="minimal_vfs">
+    <file name="readme.txt">Добро пожаловать в минимальную VFS!</file>
+    <file name="config.ini">[settings]
+        language=russian
+        theme=purple
+        version=1.0</file>
+</vfs>
