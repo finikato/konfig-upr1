@@ -56,4 +56,7 @@ python vfs_emulator.py --vfs_path complex_vfs.xml --script_path startup_script.t
   set vfs_path complex_vfs.xml
   set script_path startup_script.txt
   start
+
+Самый быстрый запуск(ИМА style):
+  запустите bat файл
 </pre>
