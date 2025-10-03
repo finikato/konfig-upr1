@@ -34,4 +34,20 @@ Tkinter (для графического интерфейса)
   1)Работа и обработка шаблонных файлов с командами для полуавтоматического запуска.
   2)Добавлен файл для автоматического запуска с обработкой команд.
   3)Обработка пути к физическому расположению VFS и пути к стартовому скрипту. 
+Обновлений 1.3
+1)Загрузка VFS из XML файлов
+2)Поддержка Base64 для двоичных данных
+3)Команда vfs-info с SHA-256 хешем
+4)Многоуровневая структура директорий 
+5)Полностью в памяти - без записи на диск
+6)Графический интерфейс и работа из командной строки
+
+Быстрый запуск:
+#Тестирование различных вариантов VFS
+python vfs_emulator.py --vfs_path minimal_vfs.xml --script_path test_basic.txt
+python vfs_emulator.py --vfs_path complex_vfs.xml --script_path test_advanced.txt
+python vfs_emulator.py --vfs_path binary_vfs.xml --script_path test_binary.txt
+
+#Минальный тест стартовым скриптом
+python vfs_emulator.py --vfs_path complex_vfs.xml --script_path startup_script.txt
 </pre>
