@@ -50,4 +50,10 @@ python vfs_emulator.py --vfs_path binary_vfs.xml --script_path test_binary.txt
 
 #Минальный тест стартовым скриптом
 python vfs_emulator.py --vfs_path complex_vfs.xml --script_path startup_script.txt
+
+Медленный запуск:
+Запуск файла через саму программу:
+  set vfs_path complex_vfs.xml
+  set script_path startup_script.txt
+  start
 </pre>
