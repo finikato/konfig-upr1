@@ -65,32 +65,36 @@ class VFS:
 
     def list_directory(self, path):
         """список содержимого директории"""
-        if path == "/":  #проверка корневой директории
-            current_dir = ""  #корневая директория
-        else:
-            current_dir = path.rstrip('/')  #удаление конечного слеша
+        #Нормализуем путь
+        if path != "/":
+            path = path.rstrip('/')
 
         dirs = set()  #множество для директорий
         files = []  #список для файлов
 
         for file_path in self.files.keys():  #перебор всех путей файлов
-            #убираем начальный слэш для корневой директории
-            rel_path = file_path[1:] if file_path.startswith('/') else file_path  #относительный путь
+            #Получаем директорию файла
+            file_dir = os.path.dirname(file_path)
+            if file_dir == "":
+                file_dir = "/"
 
-            if current_dir:  #если текущая директория не корневая
-                if rel_path.startswith(current_dir + '/'):  #проверка вхождения пути в текущую директорию
-                    remaining = rel_path[len(current_dir) + 1:]  #оставшаяся часть пути
-                    parts = remaining.split('/')  #разбиение на части
-                    if len(parts) > 1:  #если есть вложенность
-                        dirs.add(parts[0])  #добавляем директорию
-                    else:  #если это файл в текущей директории
-                        files.append(parts[0])  #добавляем файл
-            else:  #обработка корневой директории
-                parts = rel_path.split('/')  #разбиение пути на части
-                if len(parts) > 1:  #если есть вложенность
-                    dirs.add(parts[0])  #добавляем директорию
-                else:  #если это файл в корне
-                    files.append(parts[0])  #добавляем файл
+            #Если запрашивают корневую директорию
+            if path == "/":
+                if file_dir == "/":  #файл в корне
+                    files.append(os.path.basename(file_path))
+                else:  #файл во вложенной директории
+                    #Берем первую часть пути после корня
+                    first_dir = file_path.split('/')[1]
+                    dirs.add(first_dir)
+            else:
+                #Если файл находится в запрашиваемой директории
+                if file_dir == path:
+                    files.append(os.path.basename(file_path))
+                #Если файл находится во вложенной директории
+                elif file_path.startswith(path + '/'):
+                    remaining = file_path[len(path) + 1:]
+                    next_part = remaining.split('/')[0]
+                    dirs.add(next_part)
 
         result = []  #результирующий список
         for d in sorted(dirs):  #сортировка директорий по алфавиту
@@ -100,6 +104,21 @@ class VFS:
 
         return result  #возврат результата
 
+    def directory_exists(self, path):
+        """проверка существования директории"""
+        if path == "/":
+            return True  #корневая директория всегда существует
+
+        #Проверяем, есть ли файлы в этой директории или ее поддиректориях
+        for file_path in self.files.keys():
+            file_dir = os.path.dirname(file_path)
+            if file_dir == "":
+                file_dir = "/"
+
+            if file_dir == path or file_path.startswith(path + '/'):
+                return True
+        return False
+
     def file_exists(self, path):
         """проверка существования файла"""
         return path in self.files  #проверка наличия пути в словаре
@@ -107,6 +126,15 @@ class VFS:
     def read_file(self, path):
         """чтение содержимого файла"""
         return self.files.get(path, None)  #возвращаем содержимое файла или none
+
+    def get_file_head(self, path, lines=10):
+        """получение первых N строк файла"""
+        content = self.read_file(path)  #чтение содержимого файла
+        if content is None:  #если файл не найден
+            return None  #возвращаем None
+
+        file_lines = content.split('\n')  #разбиваем содержимое на строки
+        return '\n'.join(file_lines[:lines])  #возвращаем первые N строк
 
     def get_info(self):
         """получение информации о vfs"""
@@ -249,35 +277,13 @@ class VFSEmulator:
                 self.is_running = False  #сброс флага работы
                 self.write_output("эмулятор остановлен.")  #сообщение об остановке
             elif cmd == "ls":  #команда списка файлов
-                target = ' '.join(args) if args else self.current_dir  #целевая директория
-                if self.vfs.loaded:  #если vfs загружена
-                    items = self.vfs.list_directory(target)  #получение списка файлов
-                    if items:  #если есть элементы
-                        for item in items:  #перебор элементов
-                            self.write_output(item)  #вывод элемента
-                    else:  #если директория пуста
-                        self.write_output("директория пуста")  #сообщение о пустой директории
-                else:  #если vfs не загружена
-                    self.write_output("vfs не загружена")  #сообщение об ошибке
+                self.handle_ls(args)  #обработка команды ls
             elif cmd == "cd":  #команда смены директории
-                target = ' '.join(args) if args else '/'  #целевая директория
-                if target == '/':  #если корневая директория
-                    self.current_dir = '/'  #установка корневой директории
-                    self.write_output("переход в корневую директорию")  #сообщение
-                else:  #если не корневая директория
-                    self.write_output(f"смена директории: {target}")  #сообщение о смене
-                    self.current_dir = target  #установка новой директории
+                self.handle_cd(args)  #обработка команды cd
             elif cmd == "cat":  #команда просмотра файла
-                if args:  #если есть аргументы
-                    file_path = ' '.join(args)  #путь к файлу
-                    if self.vfs.loaded and self.vfs.file_exists(file_path):  #проверка существования файла
-                        content = self.vfs.read_file(file_path)  #чтение содержимого файла
-                        self.write_output(f"содержимое файла {file_path}:")  #заголовок
-                        self.write_output(content)  #вывод содержимого
-                    else:  #если файл не найден
-                        self.write_output(f"файл не найден: {file_path}")  #сообщение об ошибке
-                else:  #если нет аргументов
-                    self.write_output("ошибка: укажите имя файла")  #сообщение об ошибке
+                self.handle_cat(args)  #обработка команды cat
+            elif cmd == "head":  #команда вывода начала файла
+                self.handle_head(args)  #обработка команды head
             elif cmd == "vfs-info":  #команда информации о vfs
                 if self.vfs.loaded:  #если vfs загружена
                     self.write_output(self.vfs.get_info())  #вывод информации
@@ -299,6 +305,118 @@ class VFSEmulator:
                 self.root.destroy()  #завершение программы
             else:  #неизвестная команда
                 self.write_output(f"неизвестная команда: {cmd}")  #сообщение об ошибке
+
+    def handle_ls(self, args):
+        """обработка команды ls"""
+        target = ' '.join(args) if args else self.current_dir  #целевая директория
+        if self.vfs.loaded:  #если vfs загружена
+            items = self.vfs.list_directory(target)  #получение списка файлов
+            if items:  #если есть элементы
+                for item in items:  #перебор элементов
+                    self.write_output(item)  #вывод элемента
+            else:  #если директория пуста
+                self.write_output("директория пуста")  #сообщение о пустой директории
+        else:  #если vfs не загружена
+            self.write_output("vfs не загружена")  #сообщение об ошибке
+
+    def handle_cd(self, args):
+        """обработка команды cd"""
+        if not args:  #если аргументов нет
+            self.current_dir = "/"  #переход в корневую директорию
+            self.write_output("переход в корневую директорию")  #сообщение
+            return  #выход из функции
+
+        target = ' '.join(args)  #целевая директория
+
+        #обработка абсолютных и относительных путей
+        if target.startswith('/'):  #абсолютный путь
+            new_dir = target
+        else:  #относительный путь
+            if self.current_dir == '/':  #если текущая директория корневая
+                new_dir = '/' + target
+            else:  #если текущая директория не корневая
+                new_dir = self.current_dir + '/' + target
+
+        #нормализация пути (удаление двойных слешей и т.д.)
+        new_dir = new_dir.replace('//', '/')  #удаление двойных слешей
+
+        #проверка существования директории
+        if self.vfs.loaded and self.vfs.directory_exists(new_dir):  #если vfs загружена и директория существует
+            self.current_dir = new_dir  #установка новой директории
+            self.write_output(f"текущая директория: {self.current_dir}")  #сообщение
+        else:  #если директория не существует
+            self.write_output(f"ошибка: директория не найдена: {target}")  #сообщение об ошибке
+
+    def handle_cat(self, args):
+        """обработка команды cat"""
+        if not args:  #если нет аргументов
+            self.write_output("ошибка: укажите имя файла")  #сообщение об ошибке
+            return  #выход из функции
+
+        file_path = ' '.join(args)  #путь к файлу
+
+        #обработка относительных путей
+        if not file_path.startswith('/'):  #если путь относительный
+            if self.current_dir == '/':  #если текущая директория корневая
+                file_path = '/' + file_path
+            else:  #если текущая директория не корневая
+                file_path = self.current_dir + '/' + file_path
+
+        if self.vfs.loaded and self.vfs.file_exists(file_path):  #проверка существования файла
+            content = self.vfs.read_file(file_path)  #чтение содержимого файла
+            self.write_output(f"содержимое файла {file_path}:")  #заголовок
+            self.write_output("-" * 40)  #разделитель
+            self.write_output(content)  #вывод содержимого
+            self.write_output("-" * 40)  #разделитель
+        else:  #если файл не найден
+            self.write_output(f"файл не найден: {file_path}") #сообщение об ошибке
+
+    def handle_head(self, args):
+        """обработка команды head"""
+        if not args:  #если нет аргументов
+            self.write_output("ошибка: укажите имя файла")  #сообщение об ошибке
+            self.write_output("использование: head [-n число] <файл>")  #справка по использованию
+            return  #выход из функции
+
+        lines = 10  #количество строк по умолчанию
+        file_args = []  #аргументы для имени файла
+
+        #парсинг аргументов
+        i = 0
+        while i < len(args):
+            if args[i] == '-n' and i + 1 < len(args):  #если найден параметр -n
+                try:
+                    lines = int(args[i + 1])  #преобразование в число
+                    i += 2  #пропускаем два аргумента
+                except ValueError:  #если преобразование не удалось
+                    self.write_output(f"ошибка: неверное число строк: {args[i + 1]}")  #сообщение об ошибке
+                    return  #выход из функции
+            else:  #если это не параметр -n
+                file_args.append(args[i])  #добавляем в аргументы файла
+                i += 1  #переходим к следующему аргументу
+
+        if not file_args:  #если не указано имя файла
+            self.write_output("ошибка: укажите имя файла")  #сообщение об ошибке
+            self.write_output("использование: head [-n число] <файл>")  #справка по использованию
+            return  #выход из функции
+
+        file_path = ' '.join(file_args)  #путь к файлу
+
+        #обработка относительных путей
+        if not file_path.startswith('/'):  #если путь относительный
+            if self.current_dir == '/':  #если текущая директория корневая
+                file_path = '/' + file_path
+            else:  #если текущая директория не корневая
+                file_path = self.current_dir + '/' + file_path
+
+        if self.vfs.loaded and self.vfs.file_exists(file_path):  #проверка существования файла
+            content = self.vfs.get_file_head(file_path, lines)  #получение первых строк
+            self.write_output(f"первые {lines} строк файла {file_path}:")  #заголовок
+            self.write_output("-" * 40)  #разделитель
+            self.write_output(content)  #вывод содержимого
+            self.write_output("-" * 40)  #разделитель
+        else:  #если файл не найден
+            self.write_output(f"файл не найден: {file_path}")  #сообщение об ошибке
 
     def process_set_command(self, args):
         """обработка команды set"""
@@ -339,60 +457,65 @@ class VFSEmulator:
             self.write_output(f"ошибка: скрипт не найден: {self.script_path}")  #сообщение об ошибке
 
         self.write_output("эмулятор запущен. введите команды vfs или 'exit'.")  #сообщение о готовности
+        self.write_output("доступные команды: ls, cd, cat, head, vfs-info, exit")  #список команд
 
     def execute_script(self):
         """выполнение скрипта команд"""
         self.write_output(f"выполнение скрипта: {self.script_path}")  #информация о скрипте
 
         try:  #обработка исключений
-            #указываем кодировку utf-8 явно
-            with open(self.script_path, 'r', encoding='utf-8') as f:  #открытие файла скрипта
-                for line_num, line in enumerate(f, 1):  #чтение файла построчно
-                    line = line.strip()  #удаление пробелов
+            #пробуем разные кодировки
+            encodings = ['utf-8', 'cp1251', 'cp866', 'iso-8859-1']
+            script_content = None
 
-                    if not line or line.startswith('#'):  #пропуск пустых строк и комментариев
-                        continue  #переход к следующей строке
+            for encoding in encodings:
+                try:
+                    with open(self.script_path, 'r', encoding=encoding) as f:
+                        script_content = f.readlines()
+                    break
+                except UnicodeDecodeError:
+                    continue
 
-                    self.write_output(f"{self.prompt}{line}")  #вывод команды
+            if script_content is None:
+                self.write_output(f"ошибка: не удалось прочитать скрипт с поддерживаемыми кодировками")
+                return
 
-                    parts = line.split()  #разбиение строки на части
+            for line_num, line in enumerate(script_content, 1):
+                line = line.strip()  #удаление пробелов
 
-                    if not parts:  #если нет частей
-                        continue  #переход к следующей строке
+                if not line or line.startswith('#'):  #пропуск пустых строк и комментариев
+                    continue  #переход к следующей строке
 
-                    cmd = parts[0].lower()  #команда в нижнем регистре
-                    args = parts[1:]  #аргументы команды
+                self.write_output(f"{self.prompt}{line}")  #вывод команды
 
-                    if cmd == "exit":  #команда выхода
-                        self.write_output("завершение работы...")  #сообщение
-                        self.is_running = False  #сброс флага работы
-                        break  #выход из цикла
-                    elif cmd == "ls":  #команда списка файлов
-                        target = ' '.join(args) if args else self.current_dir  #целевая директория
-                        if self.vfs.loaded:  #если vfs загружена
-                            items = self.vfs.list_directory(target)  #получение списка
-                            for item in items:  #перебор элементов
-                                self.write_output(item)  #вывод элемента
-                    elif cmd == "cd":  #команда смены директории
-                        target = ' '.join(args) if args else '/'  #целевая директория
-                        self.current_dir = target  #установка текущей директории
-                        self.write_output(f"текущая директория: {self.current_dir}")  #сообщение
-                    elif cmd == "cat":  #команда просмотра файла
-                        if args:  #если есть аргументы
-                            file_path = ' '.join(args)  #путь к файлу
-                            if self.vfs.loaded and self.vfs.file_exists(file_path):  #проверка существования
-                                content = self.vfs.read_file(file_path)  #чтение содержимого
-                                self.write_output(f"содержимое {file_path}:")  #заголовок
-                                self.write_output(content)  #вывод содержимого
-                            else:  #если файл не найден
-                                self.write_output(f"файл не найден: {file_path}")  #сообщение об ошибке
-                    elif cmd == "vfs-info":  #команда информации о vfs
-                        if self.vfs.loaded:  #если vfs загружена
-                            self.write_output(self.vfs.get_info())  #вывод информации
-                        else:  #если vfs не загружена
-                            self.write_output("vfs не загружена")  #сообщение об ошибке
-                    else:  #неизвестная команда
-                        self.write_output(f"неизвестная команда: {cmd}")  #сообщение об ошибке
+                parts = line.split()  #разбиение строки на части
+
+                if not parts:  #если нет частей
+                    continue  #переход к следующей строке
+
+                cmd = parts[0].lower()  #команда в нижнем регистре
+                args = parts[1:]  #аргументы команды
+
+                if cmd == "exit":  #команда выхода
+                    self.write_output("завершение работы...")  #сообщение
+                    self.is_running = False  #сброс флага работы
+                    break  #выход из цикла
+                elif cmd == "ls":  #команда списка файлов
+                    self.handle_ls(args)  #обработка команды ls
+                elif cmd == "cd":  #команда смены директории
+                    self.handle_cd(args)  #обработка команды cd
+                elif cmd == "cat":  #команда просмотра файла
+                    self.handle_cat(args)  #обработка команды cat
+                elif cmd == "head":  #команда вывода начала файла
+                    self.handle_head(args)  #обработка команды head
+                elif cmd == "vfs-info":  #команда информации о vfs
+                    if self.vfs.loaded:  #если vfs загружена
+                        self.write_output(self.vfs.get_info())  #вывод информации
+                    else:  #если vfs не загружена
+                        self.write_output("vfs не загружена")  #сообщение об ошибке
+                else:  #неизвестная команда
+                    self.write_output(f"неизвестная команда: {cmd}")  #сообщение об ошибке
+
         except Exception as e:  #обработка исключений
             self.write_output(f"ошибка чтения скрипта: {e}")  #сообщение об ошибке
 
