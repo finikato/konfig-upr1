@@ -59,8 +59,9 @@ python vfs_emulator.py --vfs_path complex_vfs.xml --script_path startup_script.t
 
 Самый быстрый запуск(ИМА style):
   запустите bat файл
-</pre>
+
 
 Обновлений 1.4/1.5
  Добавленна обработка команд ls, cd, cat, head,chmod, rmdir.
  Для запуска запустите run.bat
+</pre>
