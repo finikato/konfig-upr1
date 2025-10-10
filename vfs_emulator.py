@@ -10,6 +10,8 @@ import base64
 class VFS:
     def __init__(self):
         self.files = {}  #словарь для хранения файлов {путь: содержимое}
+        self.file_permissions = {}  #словарь для хранения прав доступа {путь: права}
+        self.directories = set()  #множество для хранения директорий
         self.root = "/"  #корневая директория vfs
         self.name = ""  #имя vfs из xml
         self.sha256_hash = ""  #хэш sha-256 данных vfs
@@ -34,6 +36,9 @@ class VFS:
             #получаем имя vfs из атрибута xml
             self.name = root.get('name', 'unnamed_vfs')  #имя vfs или значение по умолчанию
             self.files = {}  #очищаем словарь файлов
+            self.file_permissions = {}  #очищаем словарь прав доступа
+            self.directories = set()  #очищаем множество директорий
+            self.directories.add("/")  #добавляем корневую директорию
 
             def process_element(element, current_path):  #внутренняя функция обработки элементов
                 #рекурсивная обработка структуры xml
@@ -42,6 +47,9 @@ class VFS:
                         #обработка директории
                         dir_name = child.get('name', 'unnamed')  #получение имени директории
                         dir_path = os.path.join(current_path, dir_name).replace('\\', '/')  #формирование пути
+                        #устанавливаем права по умолчанию для директории
+                        self.file_permissions[dir_path] = '755'
+                        self.directories.add(dir_path)  #добавляем директорию в множество
                         process_element(child, dir_path)  #рекурсивный вызов для вложенных элементов
                     elif child.tag == 'file':  #если элемент - файл
                         #обработка файла
@@ -55,6 +63,8 @@ class VFS:
                             except:  #обработка ошибок декодирования
                                 content = f"[binary data - size: {len(content)} bytes]"  #сообщение об ошибке
                         self.files[file_path] = content  #сохраняем файл в памяти
+                        #устанавливаем права по умолчанию для файла
+                        self.file_permissions[file_path] = '644'
 
             process_element(root, self.root)  #начинаем обработку с корневого элемента
             self.loaded = True  #устанавливаем флаг загрузки
@@ -96,6 +106,13 @@ class VFS:
                     next_part = remaining.split('/')[0]
                     dirs.add(next_part)
 
+        #Добавляем поддиректории из множества directories
+        for dir_path in self.directories:
+            if dir_path != "/" and dir_path.startswith(path + '/') or (path == "/" and dir_path.count('/') == 1):
+                dir_name = os.path.basename(dir_path)
+                if dir_name:
+                    dirs.add(dir_name)
+
         result = []  #результирующий список
         for d in sorted(dirs):  #сортировка директорий по алфавиту
             result.append(f"[dir] {d}")  #форматируем директорию
@@ -108,6 +125,10 @@ class VFS:
         """проверка существования директории"""
         if path == "/":
             return True  #корневая директория всегда существует
+
+        #Проверяем в множестве директорий
+        if path in self.directories:
+            return True
 
         #Проверяем, есть ли файлы в этой директории или ее поддиректориях
         for file_path in self.files.keys():
@@ -142,14 +163,77 @@ class VFS:
             return "vfs не загружена"  #сообщение об ошибке
 
         file_count = len(self.files)  #количество файлов
-        #количество директорий (уникальные пути без последнего элемента)
-        dir_count = len(set('/'.join(path.split('/')[:-1]) for path in self.files.keys()))  #подсчет уникальных директорий
+        dir_count = len(self.directories)  #количество директорий
 
         return (f"имя vfs: {self.name}\n"  #форматированная информация о vfs
                 f"хэш sha-256: {self.sha256_hash}\n"
                 f"файлов: {file_count}\n"
                 f"директорий: {dir_count}\n"
                 f"статус: загружена")
+
+    def chmod(self, path, mode):
+        """изменение прав доступа для файла или директории"""
+        if not self._path_exists(path):  #проверка существования пути
+            return False, f"ошибка: путь не существует: {path}"  #возврат ошибки
+
+        #Проверка формата прав доступа
+        if not self._is_valid_mode(mode):  #проверка валидности режима
+            return False, f"ошибка: неверный формат прав доступа: {mode}"  #возврат ошибки
+
+        self.file_permissions[path] = mode  #установка новых прав доступа
+        return True, f"права доступа для '{path}' изменены на {mode}"  #возврат успеха
+
+    def rmdir(self, path):
+        """удаление директории"""
+        if path == "/":  #проверка попытки удаления корневой директории
+            return False, "ошибка: невозможно удалить корневую директорию"  #возврат ошибки
+
+        if path not in self.directories:  #проверка существования директории
+            return False, f"ошибка: директория не существует: {path}"  #возврат ошибки
+
+        #Проверка, что директория пуста
+        if not self._is_directory_empty(path):  #проверка пустоты директории
+            return False, f"ошибка: директория не пуста: {path}"  #возврат ошибки
+
+        self.directories.remove(path)  #удаление директории из множества
+        if path in self.file_permissions:  #удаление прав доступа
+            del self.file_permissions[path]  #удаление записи о правах
+
+        return True, f"директория '{path}' успешно удалена"  #возврат успеха
+
+    def _path_exists(self, path):
+        """проверка существования пути (файла или директории)"""
+        return path in self.files or path in self.directories or self.directory_exists(path)  #комбинированная проверка
+
+    def _is_valid_mode(self, mode):
+        """проверка валидности формата прав доступа"""
+        if len(mode) != 3:  #проверка длины
+            return False  #невалидный формат
+
+        for digit in mode:  #проверка каждой цифры
+            if not digit.isdigit() or int(digit) > 7:  #проверка что цифра и не больше 7
+                return False  #невалидный формат
+
+        return True  #валидный формат
+
+    def _is_directory_empty(self, path):
+        """проверка, что директория пуста"""
+        #Проверяем файлы в этой директории
+        for file_path in self.files.keys():  #перебор файлов
+            file_dir = os.path.dirname(file_path)  #получение директории файла
+            if file_dir == path:  #если файл в удаляемой директории
+                return False  #директория не пуста
+
+        #Проверяем поддиректории
+        for dir_path in self.directories:  #перебор директорий
+            if dir_path != path and dir_path.startswith(path + '/'):  #если есть поддиректории
+                return False  #директория не пуста
+
+        return True  #директория пуста
+
+    def get_permissions(self, path):
+        """получение прав доступа для пути"""
+        return self.file_permissions.get(path, '644' if path in self.files else '755')  #возврат прав или значений по умолчанию
 
 
 class VFSEmulator:
@@ -289,6 +373,10 @@ class VFSEmulator:
                     self.write_output(self.vfs.get_info())  #вывод информации
                 else:  #если vfs не загружена
                     self.write_output("vfs не загружена")  #сообщение об ошибке
+            elif cmd == "chmod":  #команда изменения прав доступа
+                self.handle_chmod(args)  #обработка команды chmod
+            elif cmd == "rmdir":  #команда удаления директории
+                self.handle_rmdir(args)  #обработка команды rmdir
             else:  #неизвестная команда
                 self.write_output(f"неизвестная команда: {cmd}")  #сообщение об ошибке
         else:  #команды настройки
@@ -369,7 +457,7 @@ class VFSEmulator:
             self.write_output(content)  #вывод содержимого
             self.write_output("-" * 40)  #разделитель
         else:  #если файл не найден
-            self.write_output(f"файл не найден: {file_path}") #сообщение об ошибке
+            self.write_output(f"файл не найден: {file_path}")  #сообщение об ошибке
 
     def handle_head(self, args):
         """обработка команды head"""
@@ -418,6 +506,51 @@ class VFSEmulator:
         else:  #если файл не найден
             self.write_output(f"файл не найден: {file_path}")  #сообщение об ошибке
 
+    def handle_chmod(self, args):
+        """обработка команды chmod"""
+        if len(args) < 2:  #проверка количества аргументов
+            self.write_output("ошибка: команда chmod требует два аргумента")  #сообщение об ошибке
+            self.write_output("использование: chmod <режим> <файл/директория>")  #справка по использованию
+            return  #выход из функции
+
+        mode = args[0]  #режим прав доступа
+        target = ' '.join(args[1:])  #целевой путь
+
+        #обработка относительных путей
+        if not target.startswith('/'):  #если путь относительный
+            if self.current_dir == '/':  #если текущая директория корневая
+                target = '/' + target
+            else:  #если текущая директория не корневая
+                target = self.current_dir + '/' + target
+
+        if self.vfs.loaded:  #если vfs загружена
+            success, message = self.vfs.chmod(target, mode)  #изменение прав доступа
+            self.write_output(message)  #вывод результата
+        else:  #если vfs не загружена
+            self.write_output("vfs не загружена")  #сообщение об ошибке
+
+    def handle_rmdir(self, args):
+        """обработка команды rmdir"""
+        if not args:  #если нет аргументов
+            self.write_output("ошибка: укажите имя директории")  #сообщение об ошибке
+            self.write_output("использование: rmdir <директория>")  #справка по использованию
+            return  #выход из функции
+
+        target = ' '.join(args)  #целевая директория
+
+        #обработка относительных путей
+        if not target.startswith('/'):  #если путь относительный
+            if self.current_dir == '/':  #если текущая директория корневая
+                target = '/' + target
+            else:  #если текущая директория не корневая
+                target = self.current_dir + '/' + target
+
+        if self.vfs.loaded:  #если vfs загружена
+            success, message = self.vfs.rmdir(target)  #удаление директории
+            self.write_output(message)  #вывод результата
+        else:  #если vfs не загружена
+            self.write_output("vfs не загружена")  #сообщение об ошибке
+
     def process_set_command(self, args):
         """обработка команды set"""
         if len(args) < 2:  #проверка количества аргументов
@@ -457,7 +590,7 @@ class VFSEmulator:
             self.write_output(f"ошибка: скрипт не найден: {self.script_path}")  #сообщение об ошибке
 
         self.write_output("эмулятор запущен. введите команды vfs или 'exit'.")  #сообщение о готовности
-        self.write_output("доступные команды: ls, cd, cat, head, vfs-info, exit")  #список команд
+        self.write_output("доступные команды: ls, cd, cat, head, chmod, rmdir, vfs-info, exit")  #список команд
 
     def execute_script(self):
         """выполнение скрипта команд"""
@@ -508,6 +641,10 @@ class VFSEmulator:
                     self.handle_cat(args)  #обработка команды cat
                 elif cmd == "head":  #команда вывода начала файла
                     self.handle_head(args)  #обработка команды head
+                elif cmd == "chmod":  #команда изменения прав доступа
+                    self.handle_chmod(args)  #обработка команды chmod
+                elif cmd == "rmdir":  #команда удаления директории
+                    self.handle_rmdir(args)  #обработка команды rmdir
                 elif cmd == "vfs-info":  #команда информации о vfs
                     if self.vfs.loaded:  #если vfs загружена
                         self.write_output(self.vfs.get_info())  #вывод информации

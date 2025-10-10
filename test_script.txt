@@ -1,47 +1,68 @@
-# Стартовый скрипт для тестирования VFS эмулятора
-# Демонстрация всех команд этапа 4
+# ==================== ЭТАП 4: ОСНОВНЫЕ КОМАНДЫ ====================
 
-# 1. Информация о VFS
+# Информация о VFS
 vfs-info
 
-# 2. Список файлов в корневой директории
+# Навигация по корневой директории
 ls /
 
-# 3. Смена директории и просмотр содержимого
+# Тестирование команды cat
+cat /readme.txt
+cat /documents/file1.txt
+
+# Тестирование команды head
+head -n 3 /readme.txt
+head -n 5 /documents/file2.txt
+head /documents/file1.txt
+
+# Тестирование команды cd
 cd documents
 ls
-
-# 4. Возврат в корень и просмотр другого файла
+cd ../images
+ls
 cd /
-cat /readme.txt
 
-# 5. Просмотр начала файла с помощью head (первые 5 строк)
-head -n 5 /documents/file1.txt
-
-# 6. Просмотр начала файла с помощью head (по умолчанию 10 строк)
-head /documents/file2.txt
-
-# 7. Попытка перехода в несуществующую директорию
+# Тестирование обработки ошибок этапа 4
+cat /nonexistent_file.txt
+head -n abc /readme.txt
 cd nonexistent_directory
 
-# 8. Попытка чтения несуществующего файла
-cat /nonexistent_file.txt
+# ==================== ЭТАП 5: ДОПОЛНИТЕЛЬНЫЕ КОМАНДЫ ====================
 
-# 9. Попытка head для несуществующего файла
-head -n 3 /nonexistent_file.txt
+# Тестирование команды chmod
+chmod 755 /documents
+chmod 644 /readme.txt
+chmod 600 /documents/file1.txt
 
-# 10. Использование относительных путей
+# Тестирование команды rmdir
+# Попытка удалить непустую директорию
+rmdir /documents
+rmdir /images
+
+# Тестирование обработки ошибок этапа 5
+chmod 888 /documents
+chmod 75 /readme.txt
+chmod 644 /nonexistent_file
+rmdir /nonexistent_dir
+rmdir /
+
+# Тестирование граничных случаев
+head -n 0 /readme.txt
+head -n 100 /documents/file1.txt
+
+# Комбинированное использование команд
 cd documents
+chmod 755 .
 ls
 cat file1.txt
-head -n 2 file2.txt
-
-# 11. Возврат в корневую директорию и финальный список
-cd /
+cd ../images
+chmod 700 .
 ls
+cd /
 
-# 12. Финальная информация о VFS
+# Финальная проверка состояния VFS
 vfs-info
+ls /
 
 # Завершение работы
 exit
